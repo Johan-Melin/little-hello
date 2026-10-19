@@ -1,0 +1,18 @@
+const assert = require('node:assert/strict');
+const {normalize, add, remove, average} = require('./dist/history.js');
+const legacy = normalize({last:'2026-10-01'});
+assert.deepEqual(legacy.history, ['2026-10-01']);
+assert.equal(average(legacy), null);
+assert.equal(add(legacy,'2026-10-01'), false);
+add(legacy,'2026-10-08'); add(legacy,'2026-10-18');
+assert.equal(average(legacy), 8.5);
+add(legacy,'2026-09-30');
+assert.equal(legacy.last,'2026-10-18');
+remove(legacy,'2026-10-18');
+assert.equal(legacy.last,'2026-10-08');
+assert.equal(average(normalize({history:['2026-03-28','2026-03-30']})),2);
+assert.equal(add(legacy,'2026-02-30'),false);
+const empty = normalize({last:'2026-10-01',history:[]});
+assert.equal(empty.last,''); assert.equal(average(empty),null);
+assert.deepEqual(normalize(JSON.parse(JSON.stringify(legacy))),legacy);
+console.log('History checks passed: migration, duplicates, averages, backdating, removal, DST, invalid dates, empty history, persistence.');
