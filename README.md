@@ -1,5 +1,7 @@
 # Little hello
 
+[Open the live app](https://little-hello.vercel.app/)
+
 A mobile-friendly friend reminder with contact frequencies, history, and average contact intervals. Data is saved in the current browser's local storage.
 
 ## Deploy on Vercel
