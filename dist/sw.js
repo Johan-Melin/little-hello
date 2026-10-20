@@ -1,19 +1,35 @@
 // Bump this version whenever the app shell changes. New versions activate after
 // all old app windows close, so an open form is never interrupted by an update.
-const CACHE = 'little-hello-shell-v1';
+const CACHE = 'little-hello-shell-v2';
 const FILES = ['./', './index.html', './style.css', './app.js', './history.js', './pwa.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 const urls = FILES.map(path => new URL(path, self.registration.scope).href);
+const essential = urls.slice(0, 6);
+async function prepareOffline() {
+  const cache = await caches.open(CACHE);
+  await Promise.all(essential.map(async url => {
+    if (await cache.match(url)) return;
+    const response = await fetch(new Request(url, { cache: 'reload' }));
+    if (!response.ok || response.redirected) throw new Error('App shell unavailable');
+    await cache.put(url, response);
+  }));
+}
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
+    await prepareOffline();
     const cache = await caches.open(CACHE);
-    // Never cache an authentication redirect as the application shell.
-    const responses = await Promise.all(urls.map(async url => {
+    // An unavailable icon must not prevent the app from working offline.
+    await Promise.allSettled(urls.slice(6).map(async url => {
       const response = await fetch(new Request(url, { cache: 'reload' }));
-      if (!response.ok || response.redirected) throw new Error('App shell unavailable');
-      return response;
+      if (response.ok && !response.redirected) await cache.put(url, response);
     }));
-    await Promise.all(urls.map((url, i) => cache.put(url, responses[i])));
   })());
+});
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'PREPARE_OFFLINE') return;
+  event.waitUntil(prepareOffline().then(
+    () => event.ports[0]?.postMessage({ ready: true }),
+    () => event.ports[0]?.postMessage({ ready: false })
+  ));
 });
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
@@ -32,6 +48,15 @@ self.addEventListener('fetch', event => {
   if (url.origin !== root.origin || (!isHome && !urls.includes(url.href))) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    return (await cache.match(isHome ? root.href : event.request)) || fetch(event.request);
+    const cacheKey = isHome ? root.href : event.request;
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+    if (isHome) {
+      const fallback = await cache.match(new URL('index.html', root).href);
+      if (fallback) return fallback;
+    }
+    const response = await fetch(event.request);
+    if (response.ok && !response.redirected) await cache.put(cacheKey, response.clone());
+    return response;
   })());
 });

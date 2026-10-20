@@ -19,12 +19,16 @@ const caches = {
   async delete(name) { return stores.delete(name); }
 };
 let offline = false;
+let failIcons = true;
+let failCore = false;
 vm.runInNewContext(fs.readFileSync('dist/sw.js', 'utf8'), {
   self: { registration: { scope: 'https://example.com/' }, clients: { claim: async () => {} }, addEventListener: (type, fn) => listeners[type] = fn },
   URL, Request, caches,
   fetch: async request => {
     if (offline) throw Error('offline');
     const pathname = new URL(key(request)).pathname;
+    if (failIcons && pathname.includes('/icons/')) throw Error('Icon unavailable');
+    if (failCore && pathname.endsWith('/app.js')) throw Error('Script unavailable');
     assert(fs.existsSync('dist/' + (pathname === '/' ? 'index.html' : pathname.slice(1))), `Missing cached asset: ${pathname}`);
     return { ok: true, redirected: false, url: key(request) };
   }
@@ -40,11 +44,26 @@ vm.runInNewContext(fs.readFileSync('dist/sw.js', 'utf8'), {
   }
   assert.equal((await request('https://example.com/?from=home', 'navigate')).url, 'https://example.com/');
   assert.equal((await request('https://example.com/history.js')).url, 'https://example.com/history.js');
+  const shell = stores.get('little-hello-shell-v2');
+  shell.delete('https://example.com/');
+  assert.equal((await request('https://example.com/', 'navigate')).url, 'https://example.com/index.html');
+  let message;
+  const verify = async () => {
+    listeners.message({data:{type:'PREPARE_OFFLINE'},ports:[{postMessage:value=>message=value}],waitUntil:p=>work=p});
+    await work;
+  };
+  await verify(); assert.equal(message.ready,false);
+  offline=false; await verify(); assert.equal(message.ready,true);
+  assert(shell.has('https://example.com/'));
+  shell.delete('https://example.com/app.js');
+  failCore=true; await verify(); assert.equal(message.ready,false);
+  failCore=false; await verify(); assert.equal(message.ready,true);
+  offline=true;
   assert.equal(await request('https://example.com/signin-with-chatgpt', 'navigate'), undefined);
   assert.equal(await request('https://example.com/', 'cors', 'POST'), undefined);
   assert.equal(await request('https://fonts.googleapis.com/font.css'), undefined);
   stores.set('little-hello-shell-old', new Map()); stores.set('unrelated-cache', new Map());
   listeners.activate({ waitUntil: p => work = p }); await work;
   assert(!stores.has('little-hello-shell-old')); assert(stores.has('unrelated-cache'));
-  console.log('PWA checks passed: icon sizes, cached assets, offline launch, history assets, request boundaries, cache cleanup.');
+  console.log('PWA checks passed: optional icon failures, offline launch, navigation fallback, missing-cache repair, failed core verification, request boundaries, cache cleanup.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

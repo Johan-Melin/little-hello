@@ -20,8 +20,10 @@ Run the history checks with `node history.test.cjs`.
 
 ## Install and use offline
 
-Little hello is a PWA. Open your HTTPS deployment once while online to cache the app. On supported browsers, use **Install Little hello** or the browser's installation menu. On iPhone or iPad, use Safari's **Share → Add to Home Screen**.
+Little hello is a PWA. Open your HTTPS deployment while online and wait for **Ready offline**. On supported browsers, use **Install Little hello** or the browser's installation menu. On iPhone or iPad, use Safari's **Share → Add to Home Screen**, then open the home-screen app while online and wait for **Ready offline** there too.
 
-Contacts and history work offline and stay in local storage. Installation does not add push reminders or device synchronization. Fonts fall back to the system font when unavailable offline.
+Contacts and history work offline and stay in local storage. Installation does not add push reminders or device synchronization. The app uses system fonts without external font requests.
+
+If an installed app fails to open offline, reconnect and open it online. If it shows **Update ready**, close all Little hello windows (including Safari tabs) and reopen online. Wait for **Ready offline**, then test by closing and reopening in airplane mode. Do not clear website data or delete the app as a troubleshooting step: contacts are stored locally. Offline readiness verifies the current cache; it cannot prevent the operating system from later removing website storage.
 
 Run `node pwa.test.cjs` to check the manifest icons and service-worker cache behavior. When changing files in `dist`, increment the cache version in `dist/sw.js`. Updates activate after all existing app windows close, preserving open forms.
